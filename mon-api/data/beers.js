@@ -1,0 +1,40 @@
+// Petite sélection de produits, pas le catalogue complet de la marque.
+// Les recettes et degrés varient selon le pays : chaque fiche cite sa source.
+export const beers = [
+  {
+    id: 'original',
+    name: 'Original',
+    tagline: 'La blonde emblématique.',
+    style: 'Blonde',
+    abv: 8.6,
+    volume: '50 cl',
+    description: 'Une lager blonde au corps marqué, avec un profil malté et des notes fruitées. La référence originale de la gamme 8.6.',
+    notes: ['Malt', 'Fruits', 'Houblon'],
+    color: '#163ca0',
+    sourceUrl: 'https://daretodrinkdifferent.nl/speciaalbier/8-6-original-blik-50cl/',
+  },
+  {
+    id: 'gold',
+    name: 'Gold',
+    tagline: 'Des nuances florales.',
+    style: 'Blonde dorée',
+    abv: 6.5,
+    volume: '50 cl',
+    description: 'Une blonde dorée à 6,5 %, aux arômes fruités de houblon et aux nuances florales.',
+    notes: ['Fleurs', 'Fruits', 'Houblon'],
+    color: '#b18334',
+    sourceUrl: 'https://ecommerce.promocash.re/product/biere-blonde-special-gold-65percent-86',
+  },
+  {
+    id: 'red',
+    name: 'Red',
+    tagline: 'Une robe rouge cuivrée.',
+    style: 'Ambrée',
+    abv: 7.9,
+    volume: '50 cl',
+    description: 'Une bière à la robe rouge cuivrée, aux notes de malt et de caramel. Cette fiche présente la version Red à 7,9 % commercialisée notamment en Italie.',
+    notes: ['Malt', 'Caramel', 'Fruits'],
+    color: '#ab343e',
+    sourceUrl: 'https://spesasicura.com/product/bavaria-birra-86-red-latt79-ml500-id-21848',
+  },
+]

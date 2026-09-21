@@ -1,44 +1,9 @@
-import express from "express"
+import { createApp } from './app.js'
 
-const app = express()
-app.use(express.json())
+// Render fournit PORT. En local, l'API écoute sur le port 3000.
+const port = Number(process.env.PORT || 3000)
+const app = await createApp()
 
-let users = [
-  { id: 1, nom: "Ada" },
-  { id: 2, nom: "Linus" },
-]
-
-// liste
-app.get("/users", (req, res) => {
-  res.json(users)
+app.listen(port, '0.0.0.0', () => {
+  console.log(`API 8.6 démarrée sur le port ${port}`)
 })
-
-// un seul
-app.get("/users/:id", (req, res) => {
-  const user = users.find(u => u.id === Number(req.params.id))
-  if (!user) return res.status(404).json({ error: "introuvable" })
-  res.json(user)
-})
-
-// créer
-app.post("/users", (req, res) => {
-  const user = { id: Date.now(), nom: req.body.nom }
-  users.push(user)
-  res.status(201).json(user)
-})
-
-// modifier
-app.put("/users/:id", (req, res) => {
-  const user = users.find(u => u.id === Number(req.params.id))
-  if (!user) return res.status(404).json({ error: "introuvable" })
-  user.nom = req.body.nom
-  res.json(user)
-})
-
-// supprimer
-app.delete("/users/:id", (req, res) => {
-  users = users.filter(u => u.id !== Number(req.params.id))
-  res.status(204).end()
-})
-
-app.listen(3000)
