@@ -1,31 +1,34 @@
 # 8.6 — Le Collectif
 
-Un site React/Vite et une API Express pour découvrir trois références 8.6, filtrer le catalogue, garder des favoris et publier des avis. Projet pédagogique indépendant, sans vente et sans affiliation à la marque. Les canettes sont des illustrations CSS ; les sources des caractéristiques sont dans `mon-api/data/beers.js`.
+Projet React + Express + Supabase réalisé pour le sujet **« Ta petite entreprise »**. Le visiteur découvre un catalogue 8.6 dans une expérience plein écran : une vraie canette texturée tourne en 3D, se déplace avec le scroll, révèle son couvercle et rejoint les variantes Gold et Red. Une seconde page permet au gérant d’ajouter, modifier, rendre indisponible ou supprimer une référence.
 
-## Commencer par comprendre
+Projet étudiant indépendant, sans vente et sans affiliation à 8.6 ou Royal Swinkels. Les produits et tarifs du catalogue sont fictifs.
 
-Le navigateur affiche **React** (`my-app`). React envoie une requête HTTP avec `fetch` au serveur **Express** (`mon-api`). Express renvoie du **JSON**, c’est-à-dire des objets JavaScript sérialisés en texte. React met son état à jour avec `setBeers` ou `setReviews`, puis l’affichage change.
+## Comment le projet fonctionne
 
 ```text
-Page React → GET /api/beers → Express → catalogue JSON → cartes de bières
-Formulaire → POST /api/beers/original/reviews → validation → fichier JSON → avis affiché
+React (Vercel) ── fetch /bieres ──► Express (Render) ──► table bieres (Supabase)
+       ▲                                  │
+       └──────── réponse JSON ◄───────────┘
 ```
 
-Le catalogue vient réellement de l’API, sans copie cachée côté React. Si l’API ne répond pas, le site affiche un message et propose de réessayer. Les favoris sont stockés dans le navigateur avec `localStorage`. Les avis sont publics et stockés sur le serveur : ce sont deux mécanismes différents.
+React n’accède jamais directement à Supabase. La clé secrète reste uniquement dans `mon-api/.env` en local et dans les variables privées de Render en production.
 
-Lis [le guide API pas à pas](docs/API.md) : requêtes, réponses, CORS, validation, persistance et exemples.
+La base contient une seule table `bieres` avec six colonnes : `id`, `nom`, `prix`, `categorie`, `image_url` et `disponible`. `disponible` est le booléen demandé dans le sujet.
 
-## Lancer sur ton ordinateur
+## Lancer le site maintenant
 
-Dans un premier terminal depuis la racine du dépôt :
+Un mode démo est déjà préparé : il permet de tester les dix références et tout le CRUD avant de créer Supabase. Les changements restent en mémoire jusqu’au redémarrage de l’API.
+
+Dans un premier terminal :
 
 ```powershell
 cd mon-api
 npm ci
-npm start
+npm run dev
 ```
 
-Dans un deuxième terminal depuis la racine du dépôt :
+Dans un second terminal :
 
 ```powershell
 cd my-app
@@ -33,56 +36,75 @@ npm ci
 npm run dev
 ```
 
-Ouvre l’adresse donnée par Vite, généralement `http://localhost:5173`. Garde les deux terminaux actifs. Node.js 22 ou plus est requis pour l’API. Aucun fichier `.env` n’est nécessaire pour le développement : Vite transmet `/api` à `http://127.0.0.1:3000`.
+Ouvre `http://localhost:5173`. La page client est à `/` et l’espace gérant à `/#/gerant`.
 
-## Où lire le code
+## Brancher Supabase
 
-| Fichier | Rôle |
+1. Crée un projet sur Supabase.
+2. Dans **SQL Editor**, exécute tout le fichier [schema.sql](mon-api/supabase/schema.sql). Il crée la table, ses contrôles et les dix lignes de démonstration.
+3. Dans `mon-api/.env`, renseigne l’URL du projet et la clé serveur `service_role` ou `secret`, puis désactive la démo :
+
+```env
+SUPABASE_URL=https://ton-projet.supabase.co
+SUPABASE_KEY=ta-cle-serveur
+DEMO_MODE=false
+PORT=3000
+```
+
+Redémarre ensuite l’API. `GET http://localhost:3000/health` doit répondre avec `"storage":"supabase"`. Ne place jamais `SUPABASE_KEY` dans `my-app` ni dans une variable commençant par `VITE_`.
+
+## Les quatre routes du sujet
+
+| Méthode | Route | Résultat attendu |
+| --- | --- | --- |
+| `GET` | `/bieres` | `200`, liste des références |
+| `POST` | `/bieres` | `201`, ajoute une référence ; `400` si le formulaire est invalide |
+| `PUT` | `/bieres/:id` | `200`, remplace la fiche ; `404` si l’ID n’existe pas |
+| `DELETE` | `/bieres/:id` | `204`, supprime la référence |
+
+Les mêmes routes existent sous `/api/bieres` pour faciliter les tests. Le prix négatif, le nom vide, une catégorie inconnue, un booléen incorrect et une image non valide sont refusés côté serveur.
+
+Le guide [API.md](docs/API.md) explique les requêtes depuis le début avec des exemples JSON.
+
+## Ce qui répond au sujet
+
+- page client avec au moins dix produits, cartes en `flex`, recherche, catégories et filtre de disponibilité ;
+- produits indisponibles visuellement grisés ;
+- page gérant React avec formulaire contrôlé par `useState` ;
+- ajout, modification, bouton de disponibilité et suppression ;
+- une table Supabase à six colonnes dont un booléen ;
+- validation côté Express et codes HTTP demandés ;
+- frontend relié uniquement à Express ;
+- expérience 3D Three.js au scroll, avec version allégée si les animations sont réduites ;
+- vraies faces de canettes Original, Gold et Red intégrées localement pour la démonstration.
+
+## Déploiement
+
+### Render — dossier `mon-api`
+
+| Réglage | Valeur |
 | --- | --- |
-| `my-app/src/main.jsx` | Monte le composant `App` dans la page HTML. |
-| `my-app/src/App.jsx` | Catalogue, filtres, favoris, fiche et formulaire d’avis. |
-| `my-app/src/api.js` | Envoie les requêtes `fetch` et gère les erreurs. |
-| `my-app/src/components/BeerExperience.jsx` | Canettes illustrées et animations au scroll. |
-| `my-app/vite.config.js` | Proxy entre Vite et l’API locale. |
-| `mon-api/app.js` | Routes HTTP, CORS, validation et réponses JSON. |
-| `mon-api/review-store.js` | Lecture/écriture du fichier d’avis. |
-| `mon-api/index.js` | Lance le serveur au port demandé par Render. |
+| Build Command | `npm ci` |
+| Start Command | `npm start` |
+| Health Check Path | `/health` |
+| `SUPABASE_URL` | URL du projet Supabase |
+| `SUPABASE_KEY` | clé serveur Supabase |
+| `DEMO_MODE` | `false` |
+| `ADMIN_TOKEN` | code privé choisi pour les mutations du gérant |
+| `CORS_ORIGINS` | `https://web-techno-ten.vercel.app` |
 
-Les anciens exercices `button.jsx` et `/users` sont conservés.
+### Vercel — dossier `my-app`
 
-## Déployer avec tes hébergements existants
+| Réglage | Valeur |
+| --- | --- |
+| Framework Preset | Vite |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+| `VITE_API_URL` | `https://web-techno.onrender.com` |
 
-Il faut envoyer ces fichiers sur GitHub et redéployer **les deux projets**. Le code local n’est pas automatiquement le code en ligne.
+Après une modification de variable, redéploie le service concerné.
 
-### Render — API
-
-- Root Directory : `mon-api`
-- Build Command : `npm ci`
-- Start Command : `npm start`
-- `CORS_ORIGINS` : `https://web-techno-ten.vercel.app` (ajouter les autres domaines exacts, séparés par des virgules si nécessaire)
-- Le serveur utilise `process.env.PORT`, fourni par Render.
-
-Après déploiement, vérifier `https://web-techno.onrender.com/api/health` et `https://web-techno.onrender.com/api/beers`.
-
-### Vercel — site React
-
-- Root Directory : `my-app`
-- Framework Preset : **Vite**
-- Build Command : `npm run build`
-- Output Directory : `dist`
-- Variable d’environnement `VITE_API_URL` : `https://web-techno.onrender.com`, sans `/api` final.
-
-Cette adresse Render est également la valeur de production par défaut. Après modification d’une variable Vite, redéployer le frontend : la valeur est intégrée au moment du build. `my-app/vercel.json` fixe les réglages Vite. Pour un domaine Vercel différent, l’ajouter à `CORS_ORIGINS` sur Render.
-
-### Conservation des avis
-
-Le fichier JSON conserve les avis entre deux lancements **si le disque est conservé**. Les fichiers des services Render sans disque persistant sont éphémères : avis perdus au redéploiement, redémarrage ou mise en veille selon l’offre. Le site est donc une démonstration tant que ce stockage n’est pas configuré.
-
-Pour conserver les avis sur Render, monter un disque persistant puis définir `DATA_FILE` vers un fichier de ce disque (par exemple `/var/data/reviews.json` si le disque est monté à `/var/data`), ou remplacer le stockage par une base de données. Ne pas mettre le fichier d’avis dans Git. Les avis publics ne constituent pas un système de comptes utilisateurs ni un service avec modération.
-
-Référence : [stockage et limites de Render](https://render.com/docs/free).
-
-## Vérifier
+## Vérifier avant de rendre
 
 ```powershell
 cd mon-api
@@ -95,4 +117,4 @@ npm run lint
 npm run build
 ```
 
-Les tests API utilisent un dossier temporaire, sans modifier les avis du serveur.
+Les visuels des canettes sont préparés avec [process-real-packshots.py](scripts/process-real-packshots.py). Le détail des sources se trouve dans [CREDITS.md](my-app/public/products/CREDITS.md).

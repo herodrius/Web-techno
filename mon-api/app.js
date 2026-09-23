@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { beers } from './data/beers.js'
 import { createReviewStore } from './review-store.js'
+import { createBieresStore } from './bieres-store.js'
+import { bieresRouter } from './bieres-routes.js'
 
 const defaultOrigins = [
   'http://localhost:5173',
@@ -15,6 +17,8 @@ const defaultOrigins = [
 export async function createApp({
   dataFile = process.env.DATA_FILE || fileURLToPath(new URL('./storage/reviews.json', import.meta.url)),
   corsOrigins = process.env.CORS_ORIGINS || '',
+  bieresStore = createBieresStore(),
+  adminToken = process.env.ADMIN_TOKEN || '',
 } = {}) {
   const app = express()
   const reviews = await createReviewStore(dataFile)
@@ -30,18 +34,20 @@ export async function createApp({
     }
     if (origin) res.set('Access-Control-Allow-Origin', origin)
     res.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-    res.set('Access-Control-Allow-Headers', 'Content-Type')
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
     res.set('X-Content-Type-Options', 'nosniff')
     res.set('Cache-Control', 'no-store')
     if (req.method === 'OPTIONS') return res.sendStatus(204)
     next()
   })
   app.use(express.json({ limit: '16kb' }))
+  app.use(['/bieres', '/api/bieres'], bieresRouter(bieresStore, adminToken))
+  app.get('/health', (req, res) => res.json({ data: { status: 'ok', storage: bieresStore.mode } }))
 
   app.get('/', (req, res) => {
     res.json({
       message: 'Bienvenue sur ton API 8.6 !',
-      catalogue: '/api/beers',
+      catalogue: '/bieres',
       health: '/api/health',
       example: '/api/beers/original/reviews',
     })
@@ -152,6 +158,7 @@ export async function createApp({
       return res.status(400).json({ error: 'La requête contient un JSON ou une URL invalide.' })
     }
     if (error.status === 415) return res.status(415).json({ error: 'Format du corps non pris en charge.' })
+    if (error.status === 503) return res.status(503).json({ error: error.message })
     console.error('Erreur API :', error.message)
     res.status(500).json({ error: 'Le serveur n’a pas pu traiter la demande. Réessaie dans un instant.' })
   })

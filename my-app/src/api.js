@@ -1,4 +1,4 @@
-// Local : proxy Vite vers Express. Production : ton serveur Render.
+// Aucune clé Supabase dans ce fichier : React ne parle qu'à notre API Express.
 const serverUrl = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://web-techno.onrender.com')).replace(/\/$/, '')
 
 export async function api(path, options = {}) {
@@ -6,17 +6,18 @@ export async function api(path, options = {}) {
   const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout
   let response
   try {
-    response = await fetch(`${serverUrl}/api${path}`, { ...options, signal,
-      headers: { ...options.headers, ...(options.body ? { 'Content-Type': 'application/json' } : {}) },
+    response = await fetch(`${serverUrl}${path}`, {
+      ...options, signal,
+      headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
     })
-  } catch (error) {
-    if (options.signal?.aborted) throw error
-    throw new Error('Le serveur ne répond pas pour le moment. Réessaie dans quelques instants.', { cause: error })
+  } catch (cause) {
+    if (options.signal?.aborted) throw cause
+    throw new Error('Le serveur ne répond pas. Réessaie dans un instant.', { cause })
   }
+  if (response.status === 204) return null
   let payload
   try { payload = await response.json() }
-  catch { throw new Error('Le service est indisponible pour le moment. Réessaie dans quelques instants.') }
-  if (!response.ok) throw new Error(typeof payload.error === 'string' ? payload.error : payload.error?.message || 'La demande n’a pas pu être traitée.')
-  if (!payload || !('data' in payload)) throw new Error('La réponse du serveur est incomplète.')
+  catch { throw new Error('Réponse du serveur illisible. Vérifie que la nouvelle API a été déployée.') }
+  if (!response.ok) throw new Error(payload.error || 'La demande a échoué.')
   return payload
 }

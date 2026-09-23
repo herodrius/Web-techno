@@ -1,0 +1,40 @@
+import { mkdir, writeFile } from 'node:fs/promises'
+
+// Images vectorielles locales pour les cartes (pas de dépendance à un CDN).
+const directory = new URL('../my-app/public/products/', import.meta.url)
+await mkdir(directory, { recursive: true })
+for (const [variant, color, text, accent, strength] of [
+  ['original', '#192120', '#f5ecd5', '#cab176', '8.6'],
+  ['gold', '#c2a257', '#1d271e', '#433b24', '6.5'],
+  ['red', '#872d30', '#f3e6cd', '#d9ae75', '7.9'],
+]) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="660" viewBox="0 0 360 660" role="img" aria-label="Illustration 8.6 ${variant}">
+  <defs>
+    <linearGradient id="metal"><stop stop-color="#69766c"/><stop offset=".2" stop-color="#ecede4"/><stop offset=".5" stop-color="#8d9b8e"/><stop offset=".8" stop-color="#dce0d5"/><stop offset="1" stop-color="#556057"/></linearGradient>
+    <linearGradient id="shade"><stop stop-color="#000" stop-opacity=".5"/><stop offset=".14" stop-color="#fff" stop-opacity=".13"/><stop offset=".36" stop-color="#fff" stop-opacity="0"/><stop offset=".73" stop-color="#000" stop-opacity=".07"/><stop offset=".95" stop-color="#000" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity=".2"/></linearGradient>
+    <linearGradient id="top" x2="0" y2="1"><stop stop-color="#e1e7da"/><stop offset=".45" stop-color="#8b978a"/><stop offset="1" stop-color="#cad2c4"/></linearGradient>
+  </defs>
+  <path d="M75 59Q66 85 61 100L61 578Q65 610 86 615L274 615Q296 606 299 578L299 100Q294 83 285 59Z" fill="${color}" stroke="#919888" stroke-width="2"/>
+  <path d="M76 58Q66 74 61 107L299 107Q294 74 284 58Z" fill="url(#metal)"/>
+  <path d="M61 105L299 105V579Q295 605 274 613H86Q65 605 61 579Z" fill="${color}"/>
+  <g text-anchor="middle" fill="${accent}" font-family="Arial,sans-serif">
+    <text x="180" y="147" font-size="10" letter-spacing="3">BIÈRE DE SPÉCIALITÉ</text>
+    <path d="M180 170v65m0-48c-20-1-25-12-25-12 23-3 25 12 25 12s2-15 25-12c0 0-5 11-25 12m0 18c-25-1-31-16-31-16 28-3 31 16 31 16s3-19 31-16c0 0-6 15-31 16m0 18c-29-1-34-16-34-16 30-3 34 16 34 16s4-19 34-16c0 0-5 15-34 16" fill="none" stroke="${accent}" stroke-width="2"/>
+    <text x="173" y="376" font-family="Impact,Arial Black,sans-serif" font-weight="900" font-size="145" letter-spacing="-12" fill="${text}">8.6</text>
+    <text x="182" y="424" font-family="Arial,sans-serif" font-weight="700" font-size="28" letter-spacing="5">${variant.toUpperCase()}</text>
+    <path d="M109 445h142" stroke="${accent}"/>
+    <text x="180" y="477" fill="${text}" font-size="13" font-weight="700" letter-spacing="2">INTENSE PAR NATURE.</text>
+    <text x="180" y="533" font-size="29" font-weight="700">${strength}%</text>
+    <text x="180" y="557" font-size="9" letter-spacing="2">ALC. / VOL. · 50 CL</text>
+    <text x="180" y="587" font-size="6" letter-spacing="1.5">ILLUSTRATION — LE COLLECTIF</text>
+  </g>
+  <path d="M75 59Q66 85 61 100L61 578Q65 610 86 615L274 615Q296 606 299 578L299 100Q294 83 285 59Z" fill="url(#shade)"/>
+  <ellipse cx="180" cy="61" rx="108" ry="26" fill="url(#top)" stroke="url(#metal)" stroke-width="7"/>
+  <ellipse cx="180" cy="60" rx="95" ry="19" fill="none" stroke="#768574" stroke-width="2"/>
+  <ellipse cx="181" cy="62" rx="24" ry="11" fill="#a3afa0" stroke="#788575" stroke-width="2"/>
+  <ellipse cx="181" cy="62" rx="12" ry="5" fill="#6d796d"/>
+  <path d="M82 611Q180 631 278 611" fill="none" stroke="url(#metal)" stroke-width="10"/>
+  <g fill="#eef9ed" fill-opacity=".22" stroke="#eff9ee" stroke-opacity=".35"><ellipse cx="93" cy="194" rx="3" ry="5"/><ellipse cx="270" cy="324" rx="2" ry="4"/><ellipse cx="99" cy="460" rx="3" ry="5"/><ellipse cx="260" cy="546" rx="4" ry="6"/><ellipse cx="244" cy="216" rx="2" ry="3"/></g>
+  </svg>`
+  await writeFile(new URL(`${variant}.svg`, directory), svg)
+}
