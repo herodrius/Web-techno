@@ -14,7 +14,7 @@ function aperture(Path = THREE.Path) {
 }
 
 function torus(parent, radius, tube, height, material) {
-  const mesh = new THREE.Mesh(new THREE.TorusGeometry(radius, tube, 12, 128), material)
+  const mesh = new THREE.Mesh(new THREE.TorusGeometry(radius, tube, 8, 96), material)
   mesh.rotation.x = Math.PI / 2
   mesh.position.y = height
   parent.add(mesh)
@@ -49,7 +49,7 @@ export function createCanLid(brushedSurface) {
 
   // Rolled double seam and recessed countersink, with an actual sloping wall.
   const profile = [[.566,.025],[.553,.017],[.542,.003],[.531,-.021],[.521,-.036],[.511,-.040],[.501,-.031],[.492,-.022],[.479,-.020],[.471,-.026]]
-  const rimGeometry = new THREE.LatheGeometry(profile.map(([x,y]) => new THREE.Vector2(x,y)), 160)
+  const rimGeometry = new THREE.LatheGeometry(profile.map(([x,y]) => new THREE.Vector2(x,y)), 96)
   const rim = new THREE.Mesh(rimGeometry, aluminium)
   rim.receiveShadow = true
   group.add(rim)
@@ -64,7 +64,7 @@ export function createCanLid(brushedSurface) {
   panelShape.holes.push(aperture())
   const panel = layFlat(new THREE.Mesh(new THREE.ExtrudeGeometry(panelShape, {
     depth: .008, bevelEnabled: true, bevelSize: .0018,
-    bevelThickness: .0015, bevelSegments: 2, curveSegments: 64,
+    bevelThickness: .0015, bevelSegments: 2, curveSegments: 24,
   }), [aluminium, edgeMetal]), -.034)
   panel.name = 'perforated-lid'
   group.add(panel)
@@ -75,7 +75,7 @@ export function createCanLid(brushedSurface) {
   group.add(interior)
   const flapPivot = new THREE.Group()
   flapPivot.position.set(0, -.027, .083)
-  const flapGeometry = new THREE.ExtrudeGeometry(aperture(THREE.Shape), { depth: .006, bevelEnabled: false, curveSegments: 64 })
+  const flapGeometry = new THREE.ExtrudeGeometry(aperture(THREE.Shape), { depth: .006, bevelEnabled: false, curveSegments: 24 })
   flapGeometry.translate(0, .083, 0)
   flapGeometry.scale(.975, .975, 1)
   const flap = layFlat(new THREE.Mesh(flapGeometry, [aluminium, cutMetal]), 0)
@@ -104,7 +104,7 @@ export function createCanLid(brushedSurface) {
   outline.holes.push(fingerHole, rivetHole)
   const pull = layFlat(new THREE.Mesh(new THREE.ExtrudeGeometry(outline, {
     depth: .011, bevelEnabled: true, bevelSize: .0035,
-    bevelThickness: .003, bevelSegments: 3, curveSegments: 48,
+    bevelThickness: .003, bevelSegments: 2, curveSegments: 24,
   }), [tabMetal, edgeMetal]), 0)
   pull.castShadow = true
   pull.name = 'pull-tab'

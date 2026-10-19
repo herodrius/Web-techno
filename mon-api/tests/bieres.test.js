@@ -1,74 +1,84 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { createApp } from '../app.js'
-import { createBieresStore } from '../bieres-store.js'
+import { createApp, validateBiere } from '../app.js'
 
-const item = { nom: 'Test Original', prix: 2.4, categorie: 'Original', image_url: '/products/original.svg', disponible: true }
-const request = (method, body, token) => ({ method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
+const firstId = '86000000-0000-4000-8000-000000000001'
+const missingId = '86000000-0000-4000-8000-999999999999'
+const exemple = { nom: 'Original · 50 cl', prix: 2.4, categorie: 'Original', image_url: '/products/original.png', disponible: true }
 
-async function fixture(t, options = {}) {
-  const directory = await mkdtemp(join(tmpdir(), 'collectif-crud-'))
-  const app = await createApp({ dataFile: join(directory, 'reviews.json'), bieresStore: createBieresStore({ DEMO_MODE: 'true' }), ...options })
-  const server = app.listen(0, '127.0.0.1')
+function fakeSupabase() {
+  let rows = [{ id: firstId, ...exemple }]
+  return {
+    from() {
+      let operation = 'select'
+      let value
+      let id
+      const query = {
+        select() { return query },
+        order() { return Promise.resolve({ data: [...rows], error: null }) },
+        insert(item) { operation = 'insert'; value = item; return query },
+        update(item) { operation = 'update'; value = item; return query },
+        delete() { operation = 'delete'; return query },
+        eq(column, selectedId) {
+          id = selectedId
+          if (operation === 'delete') {
+            rows = rows.filter((row) => row.id !== id)
+            return Promise.resolve({ data: null, error: null })
+          }
+          return query
+        },
+        single() {
+          const created = { id: '86000000-0000-4000-8000-000000000002', ...value }
+          rows.push(created)
+          return Promise.resolve({ data: created, error: null })
+        },
+        maybeSingle() {
+          const index = rows.findIndex((row) => row.id === id)
+          if (index < 0) return Promise.resolve({ data: null, error: null })
+          rows[index] = { id, ...value }
+          return Promise.resolve({ data: rows[index], error: null })
+        },
+      }
+      return query
+    },
+  }
+}
+
+async function start(t) {
+  const server = createApp(fakeSupabase()).listen(0, '127.0.0.1')
   await once(server, 'listening')
   t.after(async () => {
     server.closeAllConnections()
     await new Promise((resolve) => server.close(resolve))
-    await rm(directory, { recursive: true, force: true })
   })
   return `http://127.0.0.1:${server.address().port}`
 }
 
-test('socle du sujet : GET 200, POST 201, PUT 200/404, DELETE 204', async (t) => {
-  const base = await fixture(t)
-  const listed = await fetch(`${base}/bieres`)
-  assert.equal(listed.status, 200)
-  const catalogue = await listed.json()
-  assert.equal(catalogue.data.length, 10)
-  assert.equal(catalogue.meta.storage, 'demo')
-  for (const entry of catalogue.data) {
-    assert.equal(Object.keys(entry).length, 6)
-    assert.equal(typeof entry.disponible, 'boolean')
-    assert.match(entry.image_url, /\.(svg|png)$/)
-  }
-  const created = await fetch(`${base}/bieres`, request('POST', item))
-  assert.equal(created.status, 201)
-  const { data } = await created.json()
-  const updated = await fetch(`${base}/bieres/${data.id}`, request('PUT', { ...item, disponible: false, prix: 3.5 }))
-  assert.equal(updated.status, 200)
-  assert.equal((await updated.json()).data.disponible, false)
-  const deleted = await fetch(`${base}/bieres/${data.id}`, request('DELETE'))
-  assert.equal(deleted.status, 204)
-  assert.equal(await deleted.text(), '')
-  assert.equal((await fetch(`${base}/bieres/${data.id}`, request('PUT', item))).status, 404)
-  assert.equal((await fetch(`${base}/bieres/missing`, request('PUT', item))).status, 404)
-  assert.equal((await fetch(`${base}/bieres`).then((res) => res.json())).data.length, 10)
+const request = (method, body) => ({
+  method,
+  headers: { 'Content-Type': 'application/json' },
+  ...(body ? { body: JSON.stringify(body) } : {}),
 })
 
-test('validation serveur : nom vide, prix négatif, types et image invalides refusés', async (t) => {
-  const base = await fixture(t)
-  for (const bad of [{}, { ...item, nom: '  ' }, { ...item, prix: -1 }, { ...item, prix: '2' }, { ...item, disponible: 'false' }, { ...item, categorie: 'inconnue' }, { ...item, image_url: 'javascript:alert(1)' }]) {
-    assert.equal((await fetch(`${base}/bieres`, request('POST', bad))).status, 400)
-  }
-})
+test('les quatre routes du sujet fonctionnent', async (t) => {
+  const base = await start(t)
 
-test('la gestion protégée demande un code, le catalogue reste public', async (t) => {
-  const base = await fixture(t, { adminToken: 'code-de-test' })
   assert.equal((await fetch(`${base}/bieres`)).status, 200)
-  assert.equal((await fetch(`${base}/bieres`, request('POST', item))).status, 401)
-  assert.equal((await fetch(`${base}/bieres`, request('POST', item, 'incorrect'))).status, 401)
-  assert.equal((await fetch(`${base}/bieres`, request('POST', item, 'code-de-test'))).status, 201)
-  const preflight = await fetch(`${base}/bieres`, { method: 'OPTIONS', headers: { Origin: 'https://web-techno-ten.vercel.app', 'Access-Control-Request-Headers': 'authorization,content-type' } })
-  assert.equal(preflight.status, 204)
-  assert.match(preflight.headers.get('access-control-allow-headers'), /Authorization/)
+
+  const createdResponse = await fetch(`${base}/bieres`, request('POST', exemple))
+  assert.equal(createdResponse.status, 201)
+  const created = (await createdResponse.json()).data
+
+  const updatedResponse = await fetch(`${base}/bieres/${created.id}`, request('PUT', { ...exemple, disponible: false }))
+  assert.equal(updatedResponse.status, 200)
+  assert.equal((await updatedResponse.json()).data.disponible, false)
+
+  assert.equal((await fetch(`${base}/bieres/${created.id}`, { method: 'DELETE' })).status, 204)
+  assert.equal((await fetch(`${base}/bieres/${missingId}`, request('PUT', exemple))).status, 404)
 })
 
-test('sans configuration Supabase, aucun succès fictif ni démo implicite', async (t) => {
-  const base = await fixture(t, { bieresStore: createBieresStore({}) })
-  assert.equal((await fetch(`${base}/bieres`)).status, 503)
-  assert.equal((await fetch(`${base}/bieres`, request('POST', item))).status, 503)
+test('un nom vide et un prix négatif sont refusés', async () => {
+  assert.equal(validateBiere({ ...exemple, nom: ' ' }).error, 'Le nom est obligatoire.')
+  assert.equal(validateBiere({ ...exemple, prix: -1 }).error, 'Le prix doit être un nombre positif.')
 })

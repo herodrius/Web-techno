@@ -17,7 +17,7 @@ export async function api(path, options = {}) {
   if (response.status === 204) return null
   let payload
   try { payload = await response.json() }
-  catch { throw new Error('Réponse du serveur illisible. Vérifie que la nouvelle API a été déployée.') }
+  catch { throw new Error("L’API n’est pas disponible. Configure Supabase puis démarre le serveur dans le dossier mon-api.") }
   if (!response.ok) throw new Error(payload.error || 'La demande a échoué.')
   return payload
 }

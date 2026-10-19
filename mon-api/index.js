@@ -1,17 +1,18 @@
-import { createApp } from './app.js'
 import dotenv from 'dotenv'
-import { fileURLToPath } from 'node:url'
+import { createClient } from '@supabase/supabase-js'
+import { createApp } from './app.js'
 
-dotenv.config({ path: fileURLToPath(new URL('./.env', import.meta.url)), quiet: true })
+dotenv.config()
 
-if (process.env.NODE_ENV === 'production' && !process.env.ADMIN_TOKEN) {
-  throw new Error('Définis ADMIN_TOKEN côté serveur pour protéger la page gérant en production.')
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
+  throw new Error('Ajoute SUPABASE_URL et SUPABASE_KEY dans mon-api/.env')
 }
 
-// Render fournit PORT. En local, l'API écoute sur le port 3000.
-const port = Number(process.env.PORT || 3000)
-const app = await createApp()
+// La clé Supabase existe uniquement dans ce serveur Node.
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY)
+const app = createApp(supabase)
+const port = process.env.PORT || 3000
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`API 8.6 démarrée sur le port ${port}`)
+app.listen(port, () => {
+  console.log(`API démarrée sur http://localhost:${port}`)
 })

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Cinema from './components/Cinema'
+import { useScrollReveal } from './components/useScrollReveal'
 import { api } from './api'
 import './App.css'
 
@@ -8,8 +9,9 @@ const emptyForm = { nom: '', prix: '', categorie: 'Original', image_url: '', dis
 const normalize = (value) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
 function ProductImage({ item, ...props }) {
-  const fallback = `/products/${item.categorie.toLowerCase()}.png`
-  return <img src={item.image_url} alt={`Illustration ${item.nom}`} loading="lazy" onError={(event) => {
+  const fallback = `/products/${item.categorie.toLowerCase()}.webp`
+  const image = /^\/products\/(original|gold|red)\.png$/.test(item.image_url) ? item.image_url.replace('.png', '.webp') : item.image_url
+  return <img src={image} alt={`Illustration ${item.nom}`} loading="lazy" decoding="async" onError={(event) => {
     if (event.currentTarget.getAttribute('src') !== fallback) event.currentTarget.src = fallback
   }} {...props} />
 }
@@ -68,10 +70,8 @@ function Manager({ items, meta, loading, error, onReload, onItemsChange }) {
   const [editingId, setEditingId] = useState(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState(null)
-  const [token, setToken] = useState('')
   const [deleting, setDeleting] = useState(null)
   const nameInput = useRef(null)
-  const headers = token ? { Authorization: `Bearer ${token}` } : {}
   const change = (key, value) => setForm((current) => ({ ...current, [key]: value }))
 
   async function submit(event) {
@@ -81,7 +81,7 @@ function Manager({ items, meta, loading, error, onReload, onItemsChange }) {
     setMessage(null)
     const item = { ...form, prix: Number(form.prix), image_url: form.image_url.trim() || `/products/${form.categorie.toLowerCase()}.png` }
     try {
-      const { data } = await api(editingId ? `/bieres/${editingId}` : '/bieres', { method: editingId ? 'PUT' : 'POST', headers, body: JSON.stringify(item) })
+      const { data } = await api(editingId ? `/bieres/${editingId}` : '/bieres', { method: editingId ? 'PUT' : 'POST', body: JSON.stringify(item) })
       onItemsChange((current) => editingId ? current.map((entry) => entry.id === editingId ? data : entry) : [...current, data])
       setMessage({ ok: true, text: editingId ? 'La fiche a été modifiée.' : 'La bière a été ajoutée à la collection.' })
       setForm(emptyForm)
@@ -95,7 +95,7 @@ function Manager({ items, meta, loading, error, onReload, onItemsChange }) {
     setBusy(true)
     setMessage(null)
     try {
-      const { data } = await api(`/bieres/${item.id}`, { method: 'PUT', headers, body: JSON.stringify({ ...item, disponible: !item.disponible }) })
+      const { data } = await api(`/bieres/${item.id}`, { method: 'PUT', body: JSON.stringify({ ...item, disponible: !item.disponible }) })
       onItemsChange((current) => current.map((entry) => entry.id === item.id ? data : entry))
       setMessage({ ok: true, text: `Disponibilité de ${item.nom} mise à jour.` })
     } catch (cause) { setMessage({ ok: false, text: cause.message }) }
@@ -107,7 +107,7 @@ function Manager({ items, meta, loading, error, onReload, onItemsChange }) {
     setBusy(true)
     setMessage(null)
     try {
-      await api(`/bieres/${item.id}`, { method: 'DELETE', headers })
+      await api(`/bieres/${item.id}`, { method: 'DELETE' })
       onItemsChange((current) => current.filter((entry) => entry.id !== item.id))
       if (editingId === item.id) { setEditingId(null); setForm(emptyForm) }
       setDeleting(null)
@@ -125,10 +125,8 @@ function Manager({ items, meta, loading, error, onReload, onItemsChange }) {
 
   return <main className="manager wrap" id="contenu" tabIndex={-1}>
     <div className="manager-title"><div><p className="overline">LES COULISSES DU COLLECTIF</p><h1>LA CAVE,<br /><span>CÔTÉ GÉRANT.</span></h1></div><a className="pill-link" href="#collection">Voir la page client ↗</a></div>
-    {meta?.storage === 'demo' && <p className="notice">Mode démo local : les changements sont en mémoire et seront réinitialisés au redémarrage. Supabase reste à configurer avec le fichier SQL fourni.</p>}
     {meta?.storage === 'supabase' && <p className="database-status"><i /> Catalogue connecté à Supabase via Express.</p>}
     <div className="manager-stats"><span><strong>{items.length}</strong>références</span><span><strong>{items.filter((item) => item.disponible).length}</strong>disponibles</span><span><strong>{items.filter((item) => !item.disponible).length}</strong>indisponibles</span></div>
-    {meta?.protected && <label className="manager-access">Code gérant<input type="password" value={token} onChange={(event) => setToken(event.target.value)} placeholder="Code privé défini sur le serveur" autoComplete="off" /><small>Le code de gestion est différent de la clé Supabase. Il reste en mémoire le temps de cette page.</small></label>}
     <div className="manager-layout"><section className="editor"><span className="overline">01 / LA FICHE PRODUIT</span><h2>{editingId ? 'Modifier la fiche.' : 'Une nouvelle référence.'}</h2><form onSubmit={submit}>
       <label>Nom de la bière<input ref={nameInput} name="nom" required maxLength={100} value={form.nom} onChange={(event) => change('nom', event.target.value)} placeholder="Ex. Original · 50 cl" /></label>
       <div className="form-columns"><label>Prix (€)<input name="prix" type="number" required min="0" max="9999.99" step="0.01" value={form.prix} onChange={(event) => change('prix', event.target.value)} placeholder="2,40" /></label><label>Catégorie<select name="categorie" value={form.categorie} onChange={(event) => { change('categorie', event.target.value); change('image_url', '') }}>{['Original', 'Gold', 'Red'].map((value) => <option key={value}>{value}</option>)}</select></label></div>
@@ -139,7 +137,7 @@ function Manager({ items, meta, loading, error, onReload, onItemsChange }) {
     </form></section>
     <section className="inventory"><div className="inventory-heading"><div><span className="overline">02 / LA COLLECTION</span><h2>Les références.</h2></div><button className="round-button" onClick={onReload} disabled={busy || loading} aria-label="Actualiser le catalogue">↻</button></div>
       {loading && <p role="status">Chargement de la cave…</p>}{error && <p className="notice error" role="alert">{error}</p>}
-      <div className="inventory-list">{items.map((item) => <article className="inventory-row" key={item.id}><div className={`inventory-image tone-${item.categorie.toLowerCase()}`}><ProductImage item={item} /></div><div className="inventory-name"><h3>{item.nom}</h3><span>{item.categorie} · {euro(item.prix)}</span></div><div className="inventory-actions"><button className={`availability-switch ${item.disponible ? 'on' : ''}`} aria-label={`Disponibilité de ${item.nom}`} aria-pressed={item.disponible} onClick={() => toggle(item)} disabled={busy}><i />{item.disponible ? 'Dispo' : 'Indispo'}</button><button className="row-action" onClick={() => edit(item)} disabled={busy} aria-label={`Modifier ${item.nom}`}>✎</button><button className="row-action delete-action" onClick={() => setDeleting(item)} disabled={busy} aria-label={`Supprimer ${item.nom}`}>×</button></div></article>)}</div>
+      <div className="inventory-list">{items.map((item) => <article className="inventory-row" key={item.id}><div className={`inventory-image tone-${item.categorie.toLowerCase()}`}><ProductImage item={item} /></div><div className="inventory-name"><h3>{item.nom}</h3><span>{item.categorie} · {euro(item.prix)}</span></div><div className="inventory-actions"><button className={`availability-switch ${item.disponible ? 'on' : ''}`} aria-label={`Disponibilité de ${item.nom}`} aria-pressed={item.disponible} onClick={() => toggle(item)} disabled={busy}><i />{item.disponible ? 'Dispo' : 'Indispo'}</button><button className="row-action" onClick={() => edit(item)} disabled={busy} aria-label={`Modifier ${item.nom}`}>✎</button><button className="delete-button" onClick={() => setDeleting(item)} disabled={busy} aria-label={`Supprimer ${item.nom}`}><span aria-hidden="true">×</span> Supprimer</button></div></article>)}</div>
       {!items.length && !loading && !error && <p>La cave est vide. Ajoute ta première référence.</p>}
     </section></div>
     {message && <p className={`manager-feedback ${message.ok ? '' : 'error'}`} role={message.ok ? 'status' : 'alert'}>{message.text}<button aria-label="Fermer le message" onClick={() => setMessage(null)}>×</button></p>}
@@ -154,6 +152,8 @@ function DeleteDialog({ item, busy, onCancel, onConfirm }) {
 }
 
 export default function App() {
+  const appRoot = useRef(null)
+  useScrollReveal(appRoot)
   const [manager, setManager] = useState(() => window.location.hash === '#/gerant')
   const [items, setItems] = useState([])
   const [meta, setMeta] = useState(null)
@@ -179,10 +179,22 @@ export default function App() {
   }, [attempt])
   function reload() { setError(''); setLoading(true); setAttempt((value) => value + 1) }
 
-  return <div className={manager ? 'app app-manager' : 'app'}>
+  return <div ref={appRoot} className={manager ? 'app app-manager' : 'app'}>
     <a className="skip-link" href={manager ? '#/gerant' : '#collection'} onClick={manager ? (event) => { event.preventDefault(); document.querySelector('#contenu')?.focus(); document.querySelector('#contenu')?.scrollIntoView() } : undefined}>Aller au contenu</a>
     <header className={`navigation ${manager ? 'navigation-manager' : ''}`}><a className="wordmark" href="#experience" aria-label="Le Collectif 8.6, accueil">8.6<span>LE COLLECTIF</span></a><nav aria-label="Navigation principale"><a href="#experience" className={!manager ? 'current' : ''}>L’expérience</a><a href="#collection">La collection</a><a href="#/gerant" className={manager ? 'current' : ''}>Espace gérant <span>↗</span></a></nav></header>
-    {manager ? <Manager items={items} meta={meta} loading={loading} error={error} onReload={reload} onItemsChange={setItems} /> : <main><Cinema /><Catalogue items={items} loading={loading} error={error} onReload={reload} /><section className="manifesto"><div className="wrap"><span className="overline">L’ESPRIT DU COLLECTIF</span><h2>LES NUANCES<br />FONT LA<br /><em>DIFFÉRENCE.</em></h2><div><span className="manifesto-star" aria-hidden="true">✳</span><p>Trois caractères. Une même curiosité.<br />Le Collectif est une cave fictive, pensée pour explorer la gamme 8.6 avec un autre regard.</p><a className="pill-link" href="#collection">Revenir à la sélection ↗</a></div></div></section></main>}
-    <footer className="footer wrap"><div><a className="footer-logo" href="#experience">8.6</a><p>LE COLLECTIF<br /><span>Un projet. Du caractère.</span></p><a href="#/gerant">Les coulisses ↗</a></div><div className="footer-fine"><span>PROJET ÉTUDIANT · NON AFFILIÉ À LA MARQUE · AUCUNE VENTE</span><span>L’abus d’alcool est dangereux pour la santé. À consommer avec modération.</span><b>18+</b></div></footer>
+    {manager ? <Manager items={items} meta={meta} loading={loading} error={error} onReload={reload} onItemsChange={setItems} /> : <main><Cinema /><Catalogue items={items} loading={loading} error={error} onReload={reload} /></main>}
+    <footer className="footer footer-brand">
+      <div className="footer-brand-bg" aria-hidden="true"><span>8.6</span></div>
+      <div className="footer-brand-content wrap">
+        <p className="footer-warning">L’abus d’alcool est dangereux pour la santé, à consommer avec modération.</p>
+        <div className="footer-brand-grid">
+          <div><span className="overline">LE COLLECTIF</span><a className="footer-logo" href="#experience">8.6</a><p>Un projet étudiant.<br />Du caractère en mouvement.</p></div>
+          <div><span className="overline">EXPLORER</span><a href="#experience">L’expérience</a><a href="#collection">La collection</a><a href="#/gerant">Les coulisses</a></div>
+          <div><span className="overline">PROJET</span><p>Interface React<br />API Express · Render<br />Données Supabase</p></div>
+          <b className="footer-age">18+</b>
+        </div>
+        <div className="footer-fine"><span>PROJET ÉTUDIANT · NON AFFILIÉ À LA MARQUE · AUCUNE VENTE</span><span>© 2026 LE COLLECTIF 8.6</span></div>
+      </div>
+    </footer>
   </div>
 }

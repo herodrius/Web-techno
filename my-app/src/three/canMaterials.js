@@ -1,9 +1,15 @@
 import * as THREE from 'three'
+import originalUrl from '../assets/cans/original.webp'
+import goldUrl from '../assets/cans/gold.webp'
+import redUrl from '../assets/cans/red.webp'
+import originalCompact from '../assets/cans/original-compact.webp'
+import goldCompact from '../assets/cans/gold-compact.webp'
+import redCompact from '../assets/cans/red-compact.webp'
 
-const sources = {
-  original: { file: 'real-original.jpg', center: 600, radius: 183, top: 148, bottom: 1040, base: '#082c40' },
-  gold: { file: 'real-gold.jpg', center: 586, radius: 207, top: 68, bottom: 1114, base: '#af863e' },
-  red: { file: 'real-red.png', center: 500, radius: 170, top: 55, bottom: 925, base: '#a81d31' },
+const labels = {
+  original: [originalUrl, originalCompact],
+  gold: [goldUrl, goldCompact],
+  red: [redUrl, redCompact],
 }
 
 export function randomSequence(seed = 86) {
@@ -13,83 +19,27 @@ export function randomSequence(seed = 86) {
   }
 }
 
-function surfaceTexture(canvas) {
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.colorSpace = THREE.SRGBColorSpace
-  texture.anisotropy = 8
-  return texture
-}
-
-export function createLabel(variant, onLoad, onError) {
-  const config = sources[variant]
-  const canvas = document.createElement('canvas')
-  canvas.width = 2048
-  canvas.height = 2048
-  const ctx = canvas.getContext('2d')
-  ctx.fillStyle = config.base
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-  const texture = surfaceTexture(canvas)
+// Photo projection is baked by scripts/bake-can-textures.py, never on a visitor's CPU.
+export function createLabel(variant, onLoad, onError, compact = false) {
   let disposed = false
-  const loader = new THREE.ImageLoader()
-  Promise.all([
-    loader.loadAsync(`/products/${config.file}`),
-    loader.loadAsync(`/products/label-${variant}.jpg`),
-  ]).then(([photo, back]) => {
-    if (disposed) return
-    // Re-use the reconstructed demo back. The original photo supplies the front,
-    // with its white printing intact (white ink must never be keyed out).
-    ctx.drawImage(back, 0, 0, 350, back.height, 0, 0, 350, canvas.height)
-    ctx.drawImage(back, 1698, 0, 350, back.height, 1698, 0, 350, canvas.height)
-
-    const source = document.createElement('canvas')
-    source.width = photo.width
-    source.height = photo.height
-    const sourceCtx = source.getContext('2d', { willReadFrequently: true })
-    sourceCtx.drawImage(photo, 0, 0)
-    const pixels = sourceCtx.getImageData(0, 0, photo.width, photo.height).data
-    const output = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    // Inverse cylindrical projection: the photographed front covers a half turn,
-    // rather than looking like a small photo pasted onto a larger cylinder.
-    for (let y = 0; y < canvas.height; y++) {
-      const v = y / (canvas.height - 1)
-      const sourceY = config.top + v * (config.bottom - config.top)
-      const sy = Math.floor(sourceY)
-      const fy = sourceY - sy
-      const shoulder = THREE.MathUtils.smoothstep(v, 0, .10)
-      const radius = config.radius * THREE.MathUtils.lerp(.81, 1, shoulder)
-      for (let x = 500; x < 1548; x++) {
-        const angle = (x / canvas.width - .5) * Math.PI * 2
-        const sourceX = config.center + Math.sin(angle) * radius
-        const sx = Math.floor(sourceX)
-        const fx = sourceX - sx
-        const i = (sy * photo.width + sx) * 4
-        const o = (y * canvas.width + x) * 4
-        const blend = 1 - THREE.MathUtils.smoothstep(Math.abs(angle), 1.38, 1.61)
-        for (let channel = 0; channel < 3; channel++) {
-          const upper = THREE.MathUtils.lerp(pixels[i + channel], pixels[i + 4 + channel], fx)
-          const lower = THREE.MathUtils.lerp(pixels[i + photo.width * 4 + channel], pixels[i + photo.width * 4 + 4 + channel], fx)
-          output.data[o + channel] = THREE.MathUtils.lerp(output.data[o + channel], THREE.MathUtils.lerp(upper, lower, fy), blend)
-        }
-        output.data[o + 3] = 255
-      }
-    }
-    ctx.putImageData(output, 0, 0)
-    texture.needsUpdate = true
-    onLoad()
-  }).catch((error) => { if (!disposed) onError(error) })
+  const texture = new THREE.TextureLoader().load(labels[variant][compact ? 1 : 0],
+    () => { if (disposed) texture.dispose(); else onLoad() },
+    undefined, (error) => { if (!disposed) onError(error) })
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.anisotropy = compact ? 2 : 4
   return { texture, dispose: () => { disposed = true; texture.dispose() } }
 }
 
 export function createMicroSurface() {
   const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = 1024
+  canvas.width = canvas.height = 512
   const ctx = canvas.getContext('2d')
   ctx.fillStyle = '#808080'
-  ctx.fillRect(0, 0, 1024, 1024)
+  ctx.fillRect(0, 0, 512, 512)
   const random = randomSequence(258)
-  for (let i = 0; i < 16000; i++) {
-    const x = random() * 1024
-    const y = random() * 1024
+  for (let i = 0; i < 4000; i++) {
+    const x = random() * 512
+    const y = random() * 512
     const radius = .35 + random() * 1.7
     const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius)
     gradient.addColorStop(0, '#bbbbbb')
@@ -103,7 +53,7 @@ export function createMicroSurface() {
 }
 
 export function createBrushedSurface() {
-  const size = 512
+  const size = 256
   const data = new Uint8Array(size * size * 4)
   const random = randomSequence(661)
   for (let y = 0; y < size; y++) {

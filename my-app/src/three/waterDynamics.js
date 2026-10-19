@@ -5,8 +5,9 @@ const UP = new THREE.Vector3(0, 1, 0)
 
 export function createWaterDynamics(scene) {
   const count = 144
+  let limit = count
   const random = randomSequence(806)
-  const geometry = new THREE.SphereGeometry(1, 28, 20)
+  const geometry = new THREE.SphereGeometry(1, 14, 10)
   const water = new THREE.MeshPhysicalMaterial({
     color: '#ffffff', metalness: 0, roughness: .018, transmission: 1,
     thickness: .09, ior: 1.333, envMapIntensity: 1.8,
@@ -33,9 +34,9 @@ export function createWaterDynamics(scene) {
     can.updateWorldMatrix(true, false)
     can.getWorldQuaternion(rotation)
     const scale = Math.min(can.scale.x, 2.3)
-    const amount = opening ? 55 : 34
+    const amount = Math.round(limit * (opening ? .7 : .45))
     for (let i = 0; i < amount; i++) {
-      const drop = particles[next++ % count]
+      const drop = particles[next++ % limit]
       const angle = Math.PI + (random() - .5) * 3.3
       const y = opening ? 1.6 : (random() - .5) * 2.3
       normal.set(Math.sin(angle), 0, Math.cos(angle)).applyQuaternion(rotation)
@@ -54,25 +55,28 @@ export function createWaterDynamics(scene) {
   }
 
   return {
-    update(delta, elapsed, progress, can, reduced) {
-      if (reduced) { mesh.visible = false; return false }
+    setLimit(value) {
+      limit = Math.min(count, value)
+      particles.slice(limit).forEach((drop) => { drop.age = drop.life })
+    },
+    update(delta, elapsed, progress, can, reduced, active = true) {
+      if (reduced || !active) { mesh.visible = false; return false }
       mesh.visible = true
-      if (!hasStarted) {
+      if (!hasStarted && delta > 0) {
         emit(can, elapsed)
         hasStarted = true
       }
       const crossedOpening = previousProgress < .39 && progress >= .39
       const crossedReveal = previousProgress < .09 && progress >= .09
       const crossedRed = previousProgress < .77 && progress >= .77
-      if (crossedOpening || crossedReveal || crossedRed || (progress < .27 && elapsed - lastEmission > 4.7)) emit(can, elapsed, crossedOpening)
+      const crossedGold = previousProgress < .56 && progress >= .56
+      // Scroll beats create large splashes; smaller cold-water bursts keep the shot alive.
+      if (delta > 0 && ((crossedOpening || crossedReveal || crossedGold || crossedRed) || (progress < .92 && elapsed - lastEmission > 2.4))) emit(can, elapsed, crossedOpening)
       previousProgress = progress
-      let alive = false
-      particles.forEach((drop, index) => {
+      let alive = 0
+      particles.forEach((drop) => {
         drop.age += delta * .72 // Slow motion keeps the water readable.
-        if (drop.age >= drop.life) {
-          dummy.scale.setScalar(0)
-        } else {
-          alive = true
+        if (drop.age < drop.life) {
           const step = delta * .72
           drop.velocity.y -= step * .9
           drop.velocity.multiplyScalar(1 - step * .08)
@@ -85,12 +89,14 @@ export function createWaterDynamics(scene) {
           dummy.scale.set(radius / Math.sqrt(elongation), radius * elongation, radius / Math.sqrt(elongation))
           direction.copy(drop.velocity).normalize()
           dummy.quaternion.setFromUnitVectors(UP, direction)
+          dummy.updateMatrix()
+          mesh.setMatrixAt(alive++, dummy.matrix)
         }
-        dummy.updateMatrix()
-        mesh.setMatrixAt(index, dummy.matrix)
       })
+      mesh.count = alive
+      mesh.visible = alive > 0
       mesh.instanceMatrix.needsUpdate = true
-      return alive
+      return alive > 0
     },
   }
 }

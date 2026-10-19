@@ -15,15 +15,31 @@ export default function Cinema() {
 
   useEffect(() => {
     let cancelled = false
+    let started = false
+    let failed = false
     let dispose
-    import('../three/canScene').then(({ createCanScene }) => {
-      if (cancelled) return
-      try {
-        dispose = createCanScene(canvas.current, section.current,
-          () => setState('ready'), () => setState('fallback'))
-      } catch { setState('fallback') }
-    }).catch(() => { if (!cancelled) setState('fallback') })
-    return () => { cancelled = true; dispose?.() }
+    let timeout
+    const fail = () => {
+      failed = true
+      clearTimeout(timeout)
+      dispose?.()
+      if (!cancelled) setState('fallback')
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting || started) return
+      started = true
+      observer.disconnect()
+      timeout = setTimeout(fail, 20_000)
+      import('../three/canScene').then(({ createCanScene }) => {
+        if (cancelled || failed) return
+        try {
+          dispose = createCanScene(canvas.current, section.current,
+            () => { clearTimeout(timeout); if (!cancelled) setState('ready') }, fail)
+        } catch { fail() }
+      }).catch(fail)
+    })
+    observer.observe(section.current)
+    return () => { cancelled = true; clearTimeout(timeout); observer.disconnect(); dispose?.() }
   }, [])
 
   return (
@@ -33,7 +49,33 @@ export default function Cinema() {
         <div className="cinema-grain" aria-hidden="true" />
         <div className="cinema-watermark" aria-hidden="true">8.6</div>
         <div className="cinema-canvas" ref={canvas} aria-hidden="true" />
-        {state !== 'ready' && <img className="cinema-fallback" src="/products/original.png" alt="Canette 8.6 Original" />}
+        {state !== 'ready' && <img className="cinema-fallback" src="/products/original.webp" alt="Canette 8.6 Original" fetchPriority="high" />}
+        <div className="cinema-light-sweep" aria-hidden="true" />
+        <div className="cinema-thermal" aria-hidden="true">
+          <span className="cinema-thermal-ring"><i /></span>
+          <span><small>COLD CORE</small><strong>−4°C</strong><em>CONDENSATION ACTIVE</em></span>
+        </div>
+        <div className="cinema-lens-drops" aria-hidden="true">
+          <i /><i /><i /><i /><i /><i />
+        </div>
+        <div className="cinema-scanline" aria-hidden="true" />
+        <div className="cinema-type-track" aria-hidden="true"><span>ORIGINAL</span><span>GOLD</span><span>RED</span></div>
+        <div className="cinema-aurora" aria-hidden="true"><i /><i /><i /></div>
+        <div className="cinema-orbit-system" aria-hidden="true"><i /><i /><i /><span>8.6</span></div>
+        <div className="cinema-depth-particles" aria-hidden="true">
+          <i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i />
+        </div>
+        <div className="cinema-chapters" aria-hidden="true">
+          <span>SCROLL / CHAPTERS</span><i>01</i><i>02</i><i>03</i><i>04</i><i>05</i>
+        </div>
+        <div className="cinema-letterbox cinema-letterbox--top" aria-hidden="true" />
+        <div className="cinema-letterbox cinema-letterbox--bottom" aria-hidden="true" />
+        <div className="cinema-film-code" aria-hidden="true"><span>86—LAB</span><span>REC ●</span><span>00:{String(Math.round(paused ? 0 : 86)).padStart(2, '0')}</span></div>
+        <div className="cinema-trailer" aria-hidden="true">
+          <span>UNE CANETTE.</span>
+          <strong>UN IMPACT.</strong>
+          <em>PLUS FROID. PLUS BRUT.</em>
+        </div>
         <div className="cinema-macro" aria-hidden="true">
           <span><i /> EXPÉRIENCE 8.6 — 001</span>
           <strong>LE FROID.<br /><em>EN MOUVEMENT.</em></strong>

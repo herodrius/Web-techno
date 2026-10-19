@@ -10,15 +10,17 @@ function ring(group, radius, tube, y, material) {
   return mesh
 }
 
-function createCondensation(group, count) {
+function createCondensation(group, count, detail) {
   // Water is transmissive, not alpha-blended paint. Its curved surface refracts
   // the actual printed can behind it, while Fresnel catches the studio lights.
   const water = new THREE.MeshPhysicalMaterial({
     color: '#ffffff', metalness: 0, roughness: .025, transmission: 1,
     thickness: .022, ior: 1.333, envMapIntensity: 1.15,
     attenuationColor: '#ffffff', attenuationDistance: Infinity,
+    clearcoat: .85, clearcoatRoughness: .018, specularIntensity: 1,
   })
-  const geometry = new THREE.SphereGeometry(1, 24, 16)
+  // Tiny beads do not need the same tessellation as a full-screen can.
+  const geometry = new THREE.SphereGeometry(1, detail ? 20 : 12, detail ? 14 : 8)
   const positions = geometry.attributes.position
   for (let i = 0; i < positions.count; i++) {
     const y = positions.getY(i)
@@ -50,11 +52,13 @@ function createCondensation(group, count) {
   group.add(drops)
 
   // Separate moving beads: their paths stay on the surface of the cylinder.
-  const runners = new THREE.InstancedMesh(geometry, water, 7)
+  const runners = new THREE.InstancedMesh(geometry, water, detail ? 7 : 0)
   group.add(runners)
   const falling = Array.from({ length: 7 }, (_, index) => ({ angle: Math.PI - .78 + index * .255, start: .9 - random() * 1.1, radius: .018 + random() * .009 }))
   return {
+    setCount(value) { drops.count = Math.min(count, value) },
     update(progress) {
+      if (!detail) return
       falling.forEach((drop, index) => {
         const travel = THREE.MathUtils.smoothstep(progress, .01 + index * .012, .3 + index * .03)
         dummy.position.set(Math.sin(drop.angle) * .681, drop.start - travel * .6, Math.cos(drop.angle) * .681)
@@ -68,13 +72,13 @@ function createCondensation(group, count) {
   }
 }
 
-export function createCan(variant, onTextureLoad, onError, detail = true) {
+export function createCan(variant, onTextureLoad, onError, detail = true, surfaces, compact = false) {
   const group = new THREE.Group()
-  const microSurface = createMicroSurface()
-  const brushedSurface = createBrushedSurface()
-  const labelAsset = createLabel(variant, onTextureLoad, onError)
+  const microSurface = surfaces?.micro || createMicroSurface()
+  const brushedSurface = surfaces?.brushed || createBrushedSurface()
+  const labelAsset = createLabel(variant, onTextureLoad, onError, compact)
   const texture = labelAsset.texture
-  const paint = new THREE.MeshPhysicalMaterial({ map: texture, metalness: .38, roughness: .35, clearcoat: .38, clearcoatRoughness: .21, bumpMap: microSurface, bumpScale: .0012, envMapIntensity: .55 })
+  const paint = new THREE.MeshPhysicalMaterial({ map: texture, emissive: '#ffffff', emissiveMap: texture, emissiveIntensity: 0, metalness: .44, roughness: .27, clearcoat: .68, clearcoatRoughness: .12, bumpMap: microSurface, bumpScale: .001, envMapIntensity: .82, specularIntensity: 1 })
   const silver = new THREE.MeshStandardMaterial({ color: '#c2c8cc', metalness: .8, roughness: .29, bumpMap: brushedSurface, bumpScale: .0018 })
   const darkSilver = new THREE.MeshStandardMaterial({ color: '#67717c', metalness: 1, roughness: .33 })
   const profile = [[.613,-1.59],[.654,-1.56],[.675,-1.51],[.68,-1.44],[.68,1.23],[.676,1.29],[.665,1.34],[.64,1.39],[.602,1.46],[.576,1.52],[.565,1.58],[.565,1.61]]
@@ -94,10 +98,14 @@ export function createCan(variant, onTextureLoad, onError, detail = true) {
   const cap = lid.group
   const tab = lid.tab
   group.add(cap)
-  const condensation = createCondensation(group, detail ? 780 : 280)
+  const condensation = createCondensation(group, detail ? 780 : 180, detail)
+  let lastProgress = -1
   return {
     group, cap, tab, label, texture,
-    update(progress, open) { condensation.update(progress); lid.update(open) },
-    disposeTextures() { labelAsset.dispose(); microSurface.dispose(); brushedSurface.dispose() },
+    setDropCount(count) { condensation.setCount(count) },
+    update(progress, open) {
+      if (progress !== lastProgress) { condensation.update(progress); lid.update(open); lastProgress = progress }
+    },
+    disposeTextures() { labelAsset.dispose(); if (!surfaces) { microSurface.dispose(); brushedSurface.dispose() } },
   }
 }
