@@ -1,11 +1,14 @@
 import express from 'express'
+import { createClient } from '@supabase/supabase-js'
 
-// Express reçoit le client Supabase créé dans index.js.
-// Dans les tests, on peut ainsi fournir une fausse base sans utiliser de clé.
+// Connexion Supabase utilisée par l'API sur Vercel.
+const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_KEY
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY)
+  : null
+
 export function createApp(supabase) {
   const app = express()
 
-  // Autorise le frontend Vercel à appeler l'API Render.
   app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -19,14 +22,14 @@ export function createApp(supabase) {
     res.json({ message: 'API 8.6 connectée à Supabase', route: '/bieres' })
   })
 
-  // 1. Lister les bières.
+  // Lecture de toutes les références dans Supabase.
   app.get('/bieres', async (req, res) => {
     const { data, error } = await supabase.from('bieres').select('*').order('nom')
     if (error) return databaseError(res, error)
     res.json({ data, meta: { storage: 'supabase' } })
   })
 
-  // 2. Ajouter une bière.
+  // Ajout après validation du formulaire reçu.
   app.post('/bieres', async (req, res) => {
     const validation = validateBiere(req.body)
     if (validation.error) return res.status(400).json({ error: validation.error })
@@ -41,7 +44,7 @@ export function createApp(supabase) {
     res.status(201).json({ data })
   })
 
-  // 3. Modifier une bière.
+  // Modification de la ligne qui possède l'identifiant de l'URL.
   app.put('/bieres/:id', async (req, res) => {
     const validation = validateBiere(req.body)
     if (validation.error) return res.status(400).json({ error: validation.error })
@@ -58,7 +61,7 @@ export function createApp(supabase) {
     res.json({ data })
   })
 
-  // 4. Supprimer une bière.
+  // Suppression de la ligne demandée.
   app.delete('/bieres/:id', async (req, res) => {
     const { error } = await supabase.from('bieres').delete().eq('id', req.params.id)
     if (error) return databaseError(res, error)
@@ -70,8 +73,8 @@ export function createApp(supabase) {
   return app
 }
 
-// Validation demandée dans les bonus : nom obligatoire et prix positif.
 export function validateBiere(body) {
+  // On vérifie les données avant de toucher à Supabase.
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return { error: 'Un objet JSON est attendu.' }
   }
@@ -96,6 +99,9 @@ export function validateBiere(body) {
     },
   }
 }
+
+// Vercel utilise cet export comme point d'entrée de l'API.
+export default supabase ? createApp(supabase) : null
 
 function databaseError(res, error) {
   console.error('Erreur Supabase :', error.message)

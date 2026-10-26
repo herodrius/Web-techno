@@ -2,12 +2,7 @@
   "name": "mon-api",
   "version": "1.0.0",
   "description": "API pédagogique Express et Supabase pour le catalogue 8.6",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js",
-    "test": "node --test"
-  },
+  "main": "app.js",
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -15,7 +10,6 @@
   "engines": { "node": ">=22" },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
-    "dotenv": "^18.0.2",
     "express": "^5.2.1"
   }
 }
